@@ -62,6 +62,12 @@ class NavigationController extends ChangeNotifier {
     notifyListeners();
   }
 
+  void startPreviewFromAuth() {
+    _activeRole = AppRole.employee;
+    _activePage = AppPage.employeeDashboard;
+    notifyListeners();
+  }
+
   void navigateTo(AppPage page) {
     _activePage = page;
     notifyListeners();

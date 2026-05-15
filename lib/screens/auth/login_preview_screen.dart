@@ -6,10 +6,18 @@ import '../../core/constants/app_colors.dart';
 import '../../models/app_user.dart';
 import '../../services/auth_service.dart';
 
-enum _AuthMode { signIn, register, resetPassword, verifyEmail }
+enum AuthScreenMode { signIn, register, resetPassword, verifyEmail }
 
 class LoginPreviewScreen extends StatefulWidget {
-  const LoginPreviewScreen({super.key, required this.controller});
+  const LoginPreviewScreen({
+    super.key,
+    required this.controller,
+    this.initialMode = AuthScreenMode.signIn,
+    this.initialEmail,
+  });
+
+  final AuthScreenMode initialMode;
+  final String? initialEmail;
 
   final NavigationController controller;
 
@@ -33,7 +41,7 @@ class _LoginPreviewScreenState extends State<LoginPreviewScreen> {
   final TextEditingController _confirmPasswordController =
       TextEditingController();
 
-  _AuthMode _mode = _AuthMode.signIn;
+  late AuthScreenMode _mode;
   bool _loading = false;
   bool _acceptedTerms = false;
   String? _message;
@@ -80,7 +88,7 @@ class _LoginPreviewScreenState extends State<LoginPreviewScreen> {
       );
 
       setState(() {
-        _mode = _AuthMode.verifyEmail;
+        _mode = AuthScreenMode.verifyEmail;
         _message = 'Verification email sent.';
       });
     });
@@ -92,7 +100,7 @@ class _LoginPreviewScreenState extends State<LoginPreviewScreen> {
 
       setState(() {
         _message = 'Password reset link sent to your email.';
-        _mode = _AuthMode.signIn;
+        _mode = AuthScreenMode.signIn;
       });
     });
   }
@@ -135,7 +143,7 @@ class _LoginPreviewScreenState extends State<LoginPreviewScreen> {
       setState(() => _error = error.message);
 
       if (error.message.toLowerCase().contains('verify')) {
-        setState(() => _mode = _AuthMode.verifyEmail);
+        setState(() => _mode = AuthScreenMode.verifyEmail);
       }
     } catch (_) {
       setState(() => _error = 'Something went wrong. Please try again.');
@@ -146,7 +154,7 @@ class _LoginPreviewScreenState extends State<LoginPreviewScreen> {
     }
   }
 
-  void _switchMode(_AuthMode mode) {
+  void _switchMode(AuthScreenMode mode) {
     setState(() {
       _mode = mode;
       _error = null;
@@ -197,17 +205,18 @@ class _LoginPreviewScreenState extends State<LoginPreviewScreen> {
         child: _loading
             ? const _LoadingPanel()
             : switch (_mode) {
-                _AuthMode.signIn => _SignInPanel(
+                AuthScreenMode.signIn => _SignInPanel(
                   key: const ValueKey('sign-in'),
                   emailController: _emailController,
                   passwordController: _passwordController,
                   error: _error,
                   message: _message,
                   onSignIn: _signIn,
-                  onCreateAccount: () => _switchMode(_AuthMode.register),
-                  onForgotPassword: () => _switchMode(_AuthMode.resetPassword),
+                  onCreateAccount: () => _switchMode(AuthScreenMode.register),
+                  onForgotPassword: () =>
+                      _switchMode(AuthScreenMode.resetPassword),
                 ),
-                _AuthMode.register => _RegisterPanel(
+                AuthScreenMode.register => _RegisterPanel(
                   key: const ValueKey('register'),
                   nameController: _nameController,
                   organizationController: _organizationController,
@@ -221,28 +230,35 @@ class _LoginPreviewScreenState extends State<LoginPreviewScreen> {
                     setState(() => _acceptedTerms = value ?? false);
                   },
                   onRegister: _register,
-                  onSignIn: () => _switchMode(_AuthMode.signIn),
+                  onSignIn: () => _switchMode(AuthScreenMode.signIn),
                 ),
-                _AuthMode.resetPassword => _ResetPasswordPanel(
+                AuthScreenMode.resetPassword => _ResetPasswordPanel(
                   key: const ValueKey('reset'),
                   emailController: _emailController,
                   error: _error,
                   message: _message,
                   onSendReset: _sendResetEmail,
-                  onBack: () => _switchMode(_AuthMode.signIn),
+                  onBack: () => _switchMode(AuthScreenMode.signIn),
                 ),
-                _AuthMode.verifyEmail => _VerifyEmailPanel(
+                AuthScreenMode.verifyEmail => _VerifyEmailPanel(
                   key: const ValueKey('verify'),
                   email: _emailController.text.trim().toLowerCase(),
                   error: _error,
                   message: _message,
                   onResend: _resendVerificationEmail,
                   onCheckVerification: _checkVerification,
-                  onBack: () => _switchMode(_AuthMode.signIn),
+                  onBack: () => _switchMode(AuthScreenMode.signIn),
                 ),
               },
       ),
     );
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _mode = widget.initialMode;
+    _emailController.text = widget.initialEmail ?? '';
   }
 }
 
