@@ -9,6 +9,9 @@ void main() {
     );
 
     expect(find.text('Lumina'), findsOneWidget);
-    expect(find.text('Continue as Employee'), findsOneWidget);
+    expect(find.text('Workspace Preview'), findsOneWidget);
+    expect(find.text('Employee Portal'), findsOneWidget);
+    expect(find.text('Manager Dashboard'), findsOneWidget);
+    expect(find.text('Admin Console'), findsOneWidget);
   });
 }
