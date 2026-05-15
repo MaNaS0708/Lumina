@@ -8,20 +8,25 @@ import '../services/auth_service.dart';
 import 'app_theme.dart';
 
 class LuminaApp extends StatelessWidget {
-  const LuminaApp({super.key, required this.navigationController});
+  const LuminaApp({
+    super.key,
+    required this.navigationController,
+    this.authStateChanges,
+  });
 
   final NavigationController navigationController;
+  final Stream<User?>? authStateChanges;
 
   @override
   Widget build(BuildContext context) {
-    final authService = AuthService();
+    final authStream = authStateChanges ?? AuthService().authStateChanges;
 
     return MaterialApp(
       title: 'Lumina',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.dark(),
       home: StreamBuilder<User?>(
-        stream: authService.authStateChanges,
+        stream: authStream,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const _AuthBootstrapScreen();

@@ -5,8 +5,12 @@ import 'package:lumina/controllers/navigation_controller.dart';
 void main() {
   testWidgets('Lumina authentication screen renders', (tester) async {
     await tester.pumpWidget(
-      LuminaApp(navigationController: NavigationController()),
+      LuminaApp(
+        navigationController: NavigationController(),
+        authStateChanges: Stream.value(null),
+      ),
     );
+    await tester.pump();
 
     expect(find.text('Lumina'), findsWidgets);
     expect(find.text('Welcome back'), findsOneWidget);
