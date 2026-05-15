@@ -6,63 +6,92 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    function userDoc() {
-      return get(/databases/$(database)/documents/users/$(request.auth.uid));
-    }
-
-    function hasUserProfile() {
-      return signedIn()
-        && exists(/databases/$(database)/documents/users/$(request.auth.uid));
-    }
-
-    function role() {
-      return hasUserProfile() ? userDoc().data.role : null;
-    }
-
-    function isAdmin() {
-      return role() == 'admin';
-    }
-
-    function isHr() {
-      return role() == 'hr';
-    }
-
-    function isManager() {
-      return role() == 'manager';
-    }
-
-    function isEmployee() {
-      return role() == 'employee';
+    function verifiedEmail() {
+      return signedIn() && request.auth.token.email_verified == true;
     }
 
     function isSelf(userId) {
       return signedIn() && request.auth.uid == userId;
     }
 
+    function userPath() {
+      return /databases/$(database)/documents/users/$(request.auth.uid);
+    }
+
+    function hasUserProfile() {
+      return signedIn() && exists(userPath());
+    }
+
+    function userProfile() {
+      return get(userPath());
+    }
+
+    function role() {
+      return hasUserProfile() ? userProfile().data.role : null;
+    }
+
+    function isAdmin() {
+      return verifiedEmail() && role() == 'admin';
+    }
+
+    function isHr() {
+      return verifiedEmail() && role() == 'hr';
+    }
+
+    function isManager() {
+      return verifiedEmail() && role() == 'manager';
+    }
+
+    function isEmployee() {
+      return verifiedEmail() && role() == 'employee';
+    }
+
+    function validSelfUserCreate(userId) {
+      return isSelf(userId)
+        && request.resource.data.keys().hasOnly([
+          'uid',
+          'displayName',
+          'email',
+          'emailVerified',
+          'role',
+          'status',
+          'departmentId',
+          'managerId',
+          'organizationName',
+          'createdAt',
+          'updatedAt'
+        ])
+        && request.resource.data.uid == userId
+        && request.resource.data.email == request.auth.token.email
+        && request.resource.data.emailVerified == false
+        && request.resource.data.role == 'employee'
+        && request.resource.data.status == 'pending';
+    }
+
     match /appConfig/{documentId} {
-      allow read: if signedIn();
+      allow read: if verifiedEmail();
       allow create, update, delete: if isAdmin();
     }
 
     match /users/{userId} {
       allow read: if isSelf(userId) || isAdmin() || isHr() || isManager();
-      allow create: if isAdmin();
+      allow create: if validSelfUserCreate(userId) || isAdmin();
       allow update: if isSelf(userId) || isAdmin() || isHr();
       allow delete: if isAdmin();
     }
 
     match /departments/{departmentId} {
-      allow read: if signedIn();
+      allow read: if verifiedEmail();
       allow create, update, delete: if isAdmin() || isHr();
     }
 
     match /cycles/{cycleId} {
-      allow read: if signedIn();
+      allow read: if verifiedEmail();
       allow create, update, delete: if isAdmin() || isHr();
     }
 
     match /goalSheets/{sheetId} {
-      allow read: if signedIn();
+      allow read: if verifiedEmail();
       allow create: if isEmployee() || isManager() || isHr() || isAdmin();
       allow update: if isEmployee() || isManager() || isHr() || isAdmin();
       allow delete: if isAdmin() || isHr();
@@ -70,12 +99,12 @@ service cloud.firestore {
 
     match /auditLogs/{logId} {
       allow read: if isAdmin() || isHr();
-      allow create: if signedIn();
+      allow create: if verifiedEmail();
       allow update, delete: if false;
     }
 
     match /seedStatus/{documentId} {
-      allow read: if signedIn();
+      allow read: if verifiedEmail();
       allow create, update: if isAdmin();
       allow delete: if false;
     }
