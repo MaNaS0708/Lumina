@@ -1,7 +1,7 @@
 {
   "firestore": {
     "database": "(default)",
-    "location": "asia-south1",
+    "location": "nam5",
     "rules": "firestore.rules",
     "indexes": "firestore.indexes.json"
   },
@@ -18,10 +18,5 @@
         "destination": "/index.html"
       }
     ]
-  },
-  "auth": {
-    "providers": {
-      "emailPassword": true
-    }
   }
 }
