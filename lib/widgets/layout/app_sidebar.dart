@@ -234,10 +234,12 @@ class AppSidebar extends StatelessWidget {
                   SizedBox(
                     width: double.infinity,
                     child: OutlinedButton.icon(
-                      onPressed: controller.signOutPreview,
+                      onPressed: () async {
+                        await controller.signOut();
+                      },
                       icon: const Icon(Icons.logout_rounded, size: 16),
                       label: const Text(
-                        'Exit',
+                        'Sign out',
                         overflow: TextOverflow.ellipsis,
                       ),
                       style: OutlinedButton.styleFrom(

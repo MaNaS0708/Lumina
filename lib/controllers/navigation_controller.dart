@@ -1,3 +1,4 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import '../app/app_routes.dart';
@@ -70,6 +71,13 @@ class NavigationController extends ChangeNotifier {
 
   void navigateTo(AppPage page) {
     _activePage = page;
+    notifyListeners();
+  }
+
+  Future<void> signOut() async {
+    await FirebaseAuth.instance.signOut();
+    _activeRole = null;
+    _activePage = AppPage.login;
     notifyListeners();
   }
 
