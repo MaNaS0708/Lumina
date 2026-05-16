@@ -820,7 +820,7 @@ class _MailIllustration extends StatelessWidget {
   }
 }
 
-class _AuthField extends StatelessWidget {
+class _AuthField extends StatefulWidget {
   const _AuthField({
     required this.label,
     required this.controller,
@@ -838,7 +838,31 @@ class _AuthField extends StatelessWidget {
   final Widget? trailing;
 
   @override
+  State<_AuthField> createState() => _AuthFieldState();
+}
+
+class _AuthFieldState extends State<_AuthField> {
+  late bool _obscured;
+
+  @override
+  void initState() {
+    super.initState();
+    _obscured = widget.obscureText;
+  }
+
+  @override
+  void didUpdateWidget(covariant _AuthField oldWidget) {
+    super.didUpdateWidget(oldWidget);
+
+    if (oldWidget.obscureText != widget.obscureText) {
+      _obscured = widget.obscureText;
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final showVisibilityToggle = widget.obscureText;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -846,7 +870,7 @@ class _AuthField extends StatelessWidget {
           children: [
             Expanded(
               child: Text(
-                label.toUpperCase(),
+                widget.label.toUpperCase(),
                 style: const TextStyle(
                   color: Color(0xFFC9D0DC),
                   fontSize: 12,
@@ -855,17 +879,33 @@ class _AuthField extends StatelessWidget {
                 ),
               ),
             ),
-            ?trailing,
+            ?widget.trailing,
           ],
         ),
         const SizedBox(height: 8),
         TextField(
-          controller: controller,
-          keyboardType: keyboardType,
-          obscureText: obscureText,
+          controller: widget.controller,
+          keyboardType: widget.keyboardType,
+          obscureText: _obscured,
+          autocorrect: !widget.obscureText,
+          enableSuggestions: !widget.obscureText,
           style: const TextStyle(color: Color(0xFFEFF3FA), fontSize: 16),
           decoration: InputDecoration(
-            prefixIcon: Icon(icon, color: const Color(0xFF9AA4B5)),
+            prefixIcon: Icon(widget.icon, color: const Color(0xFF9AA4B5)),
+            suffixIcon: showVisibilityToggle
+                ? IconButton(
+                    tooltip: _obscured ? 'Show password' : 'Hide password',
+                    onPressed: () {
+                      setState(() => _obscured = !_obscured);
+                    },
+                    icon: Icon(
+                      _obscured
+                          ? Icons.visibility_outlined
+                          : Icons.visibility_off_outlined,
+                      color: const Color(0xFF9AA4B5),
+                    ),
+                  )
+                : null,
             filled: true,
             fillColor: const Color(0xFF171C23),
             hintStyle: const TextStyle(color: Color(0xFF697285)),
