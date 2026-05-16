@@ -6,6 +6,7 @@ import '../core/mock/mock_data.dart';
 import '../models/app_user.dart';
 
 class NavigationController extends ChangeNotifier {
+  AppUser? _authenticatedUser;
   AppRole? _activeRole;
   AppPage _activePage = AppPage.login;
 
@@ -14,9 +15,14 @@ class NavigationController extends ChangeNotifier {
   bool get isPreviewSessionActive => _activeRole != null;
 
   AppUser get activeUser {
+    if (_authenticatedUser != null) {
+      return _authenticatedUser!;
+    }
+
     switch (_activeRole) {
       case AppRole.manager:
         return MockData.manager;
+      case AppRole.hr:
       case AppRole.admin:
         return MockData.admin;
       case AppRole.employee:
@@ -34,6 +40,7 @@ class NavigationController extends ChangeNotifier {
           AppPage.managerApprovalDetail,
           AppPage.managerCheckins,
         ];
+      case AppRole.hr:
       case AppRole.admin:
         return const [
           AppPage.adminDashboard,
@@ -54,11 +61,12 @@ class NavigationController extends ChangeNotifier {
   }
 
   void startPreview(AppRole role) {
+    _authenticatedUser = null;
     _activeRole = role;
     _activePage = switch (role) {
       AppRole.employee => AppPage.employeeDashboard,
       AppRole.manager => AppPage.managerDashboard,
-      AppRole.admin => AppPage.adminDashboard,
+      AppRole.hr || AppRole.admin => AppPage.adminDashboard,
     };
     notifyListeners();
   }
@@ -69,6 +77,17 @@ class NavigationController extends ChangeNotifier {
     notifyListeners();
   }
 
+  void setAuthenticatedUser(AppUser user) {
+    _authenticatedUser = user;
+    _activeRole = user.role;
+    _activePage = switch (user.role) {
+      AppRole.employee => AppPage.employeeDashboard,
+      AppRole.manager => AppPage.managerDashboard,
+      AppRole.hr || AppRole.admin => AppPage.adminDashboard,
+    };
+    notifyListeners();
+  }
+
   void navigateTo(AppPage page) {
     _activePage = page;
     notifyListeners();
@@ -76,12 +95,14 @@ class NavigationController extends ChangeNotifier {
 
   Future<void> signOut() async {
     await FirebaseAuth.instance.signOut();
+    _authenticatedUser = null;
     _activeRole = null;
     _activePage = AppPage.login;
     notifyListeners();
   }
 
   void signOutPreview() {
+    _authenticatedUser = null;
     _activeRole = null;
     _activePage = AppPage.login;
     notifyListeners();

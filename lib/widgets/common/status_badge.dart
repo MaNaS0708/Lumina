@@ -40,14 +40,18 @@ class StatusBadge extends StatelessWidget {
     final color = switch (role) {
       AppRole.employee => AppColors.primary,
       AppRole.manager => AppColors.success,
+      AppRole.hr => AppColors.primary,
       AppRole.admin => AppColors.warning,
     };
 
-    return StatusBadge(
-      label: role.label,
-      color: color,
-      icon: Icons.verified_user_rounded,
-    );
+    final icon = switch (role) {
+      AppRole.employee => Icons.person_rounded,
+      AppRole.manager => Icons.supervisor_account_rounded,
+      AppRole.hr => Icons.badge_rounded,
+      AppRole.admin => Icons.admin_panel_settings_rounded,
+    };
+
+    return StatusBadge(label: role.label, color: color, icon: icon);
   }
 
   final String label;

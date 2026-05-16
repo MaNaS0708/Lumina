@@ -2,9 +2,11 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import '../controllers/navigation_controller.dart';
+import '../models/app_user.dart';
 import '../screens/auth/login_preview_screen.dart';
 import '../screens/shell/app_shell.dart';
 import '../services/auth_service.dart';
+import '../services/user_profile_service.dart';
 import 'app_theme.dart';
 
 class LuminaApp extends StatelessWidget {
@@ -12,10 +14,12 @@ class LuminaApp extends StatelessWidget {
     super.key,
     required this.navigationController,
     this.authStateChanges,
+    this.userProfileStream,
   });
 
   final NavigationController navigationController;
   final Stream<User?>? authStateChanges;
+  final Stream<AppUser?> Function(String uid)? userProfileStream;
 
   @override
   Widget build(BuildContext context) {
@@ -27,12 +31,12 @@ class LuminaApp extends StatelessWidget {
       theme: AppTheme.dark(),
       home: StreamBuilder<User?>(
         stream: authStream,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
+        builder: (context, authSnapshot) {
+          if (authSnapshot.connectionState == ConnectionState.waiting) {
             return const _AuthBootstrapScreen();
           }
 
-          final user = snapshot.data;
+          final user = authSnapshot.data;
 
           if (user == null) {
             return LoginPreviewScreen(controller: navigationController);
@@ -46,11 +50,28 @@ class LuminaApp extends StatelessWidget {
             );
           }
 
-          if (!navigationController.isPreviewSessionActive) {
-            navigationController.startPreviewFromAuth();
-          }
+          final profileStream =
+              userProfileStream?.call(user.uid) ??
+              UserProfileService().watchUserProfile(user.uid);
 
-          return AppShell(controller: navigationController);
+          return StreamBuilder<AppUser?>(
+            stream: profileStream,
+            builder: (context, profileSnapshot) {
+              if (profileSnapshot.connectionState == ConnectionState.waiting) {
+                return const _AuthBootstrapScreen();
+              }
+
+              final profile = profileSnapshot.data;
+
+              if (profile != null) {
+                navigationController.setAuthenticatedUser(profile);
+              } else if (!navigationController.isPreviewSessionActive) {
+                navigationController.startPreviewFromAuth();
+              }
+
+              return AppShell(controller: navigationController);
+            },
+          );
         },
       ),
     );
