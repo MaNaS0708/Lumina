@@ -1,65 +1,136 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
-import '../../core/mock/mock_data.dart';
-import '../../models/dashboard_metric.dart';
-import '../../widgets/common/metric_card.dart';
-import '../../widgets/layout/page_header.dart';
-import '../../widgets/tables/team_members_table.dart';
-import '../../controllers/navigation_controller.dart';
+import '../../core/constants/app_colors.dart';
 import '../../models/app_user.dart';
+import '../../services/admin_seed_service.dart';
+import '../../widgets/common/section_panel.dart';
+import '../../widgets/layout/page_header.dart';
 
-class AdminDashboardScreen extends StatelessWidget {
-  const AdminDashboardScreen({super.key});
+class AdminDashboardScreen extends StatefulWidget {
+  const AdminDashboardScreen({super.key, required this.user});
+
+  final AppUser user;
+
+  @override
+  State<AdminDashboardScreen> createState() => _AdminDashboardScreenState();
+}
+
+class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
+  final AdminSeedService _seedService = AdminSeedService();
+
+  bool _loading = false;
+  String? _message;
+  String? _error;
+
+  Future<void> _seedWorkspace() async {
+    setState(() {
+      _loading = true;
+      _message = null;
+      _error = null;
+    });
+
+    try {
+      await _seedService.ensureWorkspaceSeed(
+        organizationId: widget.user.organizationId,
+        organizationName: widget.user.organizationName,
+        requestedBy: FirebaseAuth.instance.currentUser?.uid ?? widget.user.id,
+      );
+
+      setState(() {
+        _message = 'Workspace setup completed.';
+      });
+    } catch (_) {
+      setState(() {
+        _error = 'Could not complete workspace setup. Check permissions.';
+      });
+    } finally {
+      if (mounted) {
+        setState(() => _loading = false);
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    final fakeNav = NavigationController()..startPreview(AppRole.manager);
+    final canSeed = widget.user.role == AppRole.admin;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const PageHeader(
-          title: 'HR overview',
+        PageHeader(
+          title: 'Admin Console',
           subtitle:
-              'Organization-level completion visibility across goal sheets, check-ins, and manager actions.',
+              'Configure your company workspace and prepare Lumina for real data.',
         ),
         const SizedBox(height: 22),
-        _MetricGrid(metrics: MockData.adminMetrics),
-        const SizedBox(height: 22),
-        TeamMembersTable(members: MockData.teamMembers, controller: fakeNav),
-      ],
-    );
-  }
-}
-
-class _MetricGrid extends StatelessWidget {
-  const _MetricGrid({required this.metrics});
-
-  final List<DashboardMetric> metrics;
-
-  @override
-  Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final columns = constraints.maxWidth > 1050
-            ? 4
-            : constraints.maxWidth > 640
-            ? 2
-            : 1;
-
-        return GridView.builder(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: columns,
-            crossAxisSpacing: 14,
-            mainAxisSpacing: 14,
-            childAspectRatio: columns == 1 ? 2.7 : 1.55,
+        SectionPanel(
+          title: 'Workspace setup',
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                widget.user.organizationName,
+                style: const TextStyle(
+                  color: AppColors.textPrimary,
+                  fontSize: 20,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'Create base configuration, the first performance cycle, and starter departments. This is safe to run more than once.',
+                style: TextStyle(
+                  color: AppColors.textSecondary,
+                  fontSize: 14,
+                  height: 1.5,
+                ),
+              ),
+              const SizedBox(height: 18),
+              FilledButton.icon(
+                onPressed: canSeed && !_loading ? _seedWorkspace : null,
+                icon: _loading
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.auto_fix_high_rounded),
+                label: Text(
+                  _loading ? 'Setting up...' : 'Create base workspace',
+                ),
+              ),
+              if (!canSeed) ...[
+                const SizedBox(height: 12),
+                const Text(
+                  'Only Admin users can run workspace setup.',
+                  style: TextStyle(color: AppColors.textMuted, fontSize: 13),
+                ),
+              ],
+              if (_message != null) ...[
+                const SizedBox(height: 12),
+                Text(
+                  _message!,
+                  style: const TextStyle(
+                    color: AppColors.success,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+              if (_error != null) ...[
+                const SizedBox(height: 12),
+                Text(
+                  _error!,
+                  style: const TextStyle(
+                    color: AppColors.danger,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ],
           ),
-          itemCount: metrics.length,
-          itemBuilder: (context, index) => MetricCard(metric: metrics[index]),
-        );
-      },
+        ),
+      ],
     );
   }
 }

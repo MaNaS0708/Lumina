@@ -50,6 +50,7 @@ class AppUser {
     required this.role,
     required this.department,
     required this.managerName,
+    required this.organizationId,
     required this.organizationName,
   });
 
@@ -61,6 +62,7 @@ class AppUser {
       role: AppRoleLabel.fromFirestoreValue(data['role'] as String?),
       department: (data['departmentName'] as String?) ?? 'Unassigned',
       managerName: (data['managerName'] as String?) ?? 'Unassigned',
+      organizationId: (data['organizationId'] as String?) ?? '',
       organizationName: (data['organizationName'] as String?) ?? 'Lumina',
     );
   }
@@ -71,5 +73,6 @@ class AppUser {
   final AppRole role;
   final String department;
   final String managerName;
+  final String organizationId;
   final String organizationName;
 }

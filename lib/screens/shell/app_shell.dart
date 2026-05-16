@@ -100,7 +100,7 @@ class _AppShellState extends State<AppShell> {
       case AppPage.managerApprovalDetail:
         return ApprovalDetailScreen(goalSheetController: goalSheetController);
       case AppPage.adminDashboard:
-        return const AdminDashboardScreen();
+        return AdminDashboardScreen(user: widget.controller.activeUser);
       case AppPage.adminReports:
         return const ReportsScreen();
       case AppPage.adminAuditLogs:

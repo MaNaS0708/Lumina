@@ -10,10 +10,6 @@ service cloud.firestore {
       return signedIn() && request.auth.token.email_verified == true;
     }
 
-    function isSelf(userId) {
-      return signedIn() && request.auth.uid == userId;
-    }
-
     function userPath() {
       return /databases/$(database)/documents/users/$(request.auth.uid);
     }
@@ -30,6 +26,14 @@ service cloud.firestore {
       return hasUserProfile() ? userProfile().data.role : null;
     }
 
+    function organizationId() {
+      return hasUserProfile() ? userProfile().data.organizationId : null;
+    }
+
+    function isSelf(userId) {
+      return signedIn() && request.auth.uid == userId;
+    }
+
     function isAdmin() {
       return verifiedEmail() && role() == 'admin';
     }
@@ -44,6 +48,10 @@ service cloud.firestore {
 
     function isEmployee() {
       return verifiedEmail() && role() == 'employee';
+    }
+
+    function inOrganization(orgId) {
+      return verifiedEmail() && organizationId() == orgId;
     }
 
     function validSelfUserCreate(userId) {
@@ -87,15 +95,31 @@ service cloud.firestore {
         && request.resource.data.createdBy == request.auth.uid;
     }
 
-    match /appConfig/{documentId} {
-      allow read: if verifiedEmail();
-      allow create, update, delete: if isAdmin();
-    }
-
-    match /organizations/{organizationId} {
+    match /organizations/{orgId} {
       allow read: if signedIn();
       allow create: if validOrganizationCreate();
-      allow update, delete: if isAdmin();
+      allow update, delete: if isAdmin() && inOrganization(orgId);
+
+      match /appConfig/{documentId} {
+        allow read: if inOrganization(orgId);
+        allow create, update, delete: if isAdmin() && inOrganization(orgId);
+      }
+
+      match /cycles/{cycleId} {
+        allow read: if inOrganization(orgId);
+        allow create, update, delete: if (isAdmin() || isHr()) && inOrganization(orgId);
+      }
+
+      match /departments/{departmentId} {
+        allow read: if inOrganization(orgId);
+        allow create, update, delete: if (isAdmin() || isHr()) && inOrganization(orgId);
+      }
+
+      match /seedStatus/{documentId} {
+        allow read: if inOrganization(orgId);
+        allow create, update: if isAdmin() && inOrganization(orgId);
+        allow delete: if false;
+      }
     }
 
     match /users/{userId} {
@@ -103,16 +127,6 @@ service cloud.firestore {
       allow create: if validSelfUserCreate(userId) || isAdmin();
       allow update: if isSelf(userId) || isAdmin() || isHr();
       allow delete: if isAdmin();
-    }
-
-    match /departments/{departmentId} {
-      allow read: if verifiedEmail();
-      allow create, update, delete: if isAdmin() || isHr();
-    }
-
-    match /cycles/{cycleId} {
-      allow read: if verifiedEmail();
-      allow create, update, delete: if isAdmin() || isHr();
     }
 
     match /goalSheets/{sheetId} {
@@ -126,12 +140,6 @@ service cloud.firestore {
       allow read: if isAdmin() || isHr();
       allow create: if verifiedEmail();
       allow update, delete: if false;
-    }
-
-    match /seedStatus/{documentId} {
-      allow read: if verifiedEmail();
-      allow create, update: if isAdmin();
-      allow delete: if false;
     }
 
     match /{document=**} {

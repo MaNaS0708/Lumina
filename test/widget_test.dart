@@ -92,6 +92,7 @@ AppUser _user({required AppRole role}) {
     role: role,
     department: 'Engineering',
     managerName: 'Manager',
+    organizationId: 'lumina',
     organizationName: 'Lumina',
   );
 }
