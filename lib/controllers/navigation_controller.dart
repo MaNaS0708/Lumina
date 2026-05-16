@@ -32,63 +32,33 @@ class NavigationController extends ChangeNotifier {
   }
 
   List<AppPage> get pagesForActiveRole {
-    switch (_activeRole) {
-      case AppRole.manager:
-        return const [
-          AppPage.managerDashboard,
-          AppPage.managerTeamGoals,
-          AppPage.managerApprovalDetail,
-          AppPage.managerCheckins,
-        ];
-      case AppRole.hr:
-      case AppRole.admin:
-        return const [
-          AppPage.adminDashboard,
-          AppPage.adminReports,
-          AppPage.adminAuditLogs,
-          AppPage.adminIdentitySettings,
-        ];
-      case AppRole.employee:
-        return const [
-          AppPage.employeeDashboard,
-          AppPage.employeeGoals,
-          AppPage.employeeGoalEditor,
-          AppPage.employeeQuarterlyUpdate,
-        ];
-      case null:
-        return const [];
-    }
+    return _pagesForRole(_activeRole);
   }
 
   void startPreview(AppRole role) {
     _authenticatedUser = null;
-    _activeRole = role;
-    _activePage = switch (role) {
-      AppRole.employee => AppPage.employeeDashboard,
-      AppRole.manager => AppPage.managerDashboard,
-      AppRole.hr || AppRole.admin => AppPage.adminDashboard,
-    };
+    _setRole(role);
     notifyListeners();
   }
 
   void startPreviewFromAuth() {
-    _activeRole = AppRole.employee;
-    _activePage = AppPage.employeeDashboard;
+    _setRole(AppRole.employee);
     notifyListeners();
   }
 
   void setAuthenticatedUser(AppUser user) {
     _authenticatedUser = user;
-    _activeRole = user.role;
-    _activePage = switch (user.role) {
-      AppRole.employee => AppPage.employeeDashboard,
-      AppRole.manager => AppPage.managerDashboard,
-      AppRole.hr || AppRole.admin => AppPage.adminDashboard,
-    };
+    _setRole(user.role);
     notifyListeners();
   }
 
   void navigateTo(AppPage page) {
+    final allowedPages = _pagesForRole(_activeRole);
+
+    if (!allowedPages.contains(page)) {
+      return;
+    }
+
     _activePage = page;
     notifyListeners();
   }
@@ -106,5 +76,54 @@ class NavigationController extends ChangeNotifier {
     _activeRole = null;
     _activePage = AppPage.login;
     notifyListeners();
+  }
+
+  void _setRole(AppRole role) {
+    _activeRole = role;
+
+    final allowedPages = _pagesForRole(role);
+
+    if (!allowedPages.contains(_activePage)) {
+      _activePage = _landingPageForRole(role);
+    }
+  }
+
+  AppPage _landingPageForRole(AppRole role) {
+    return switch (role) {
+      AppRole.employee => AppPage.employeeDashboard,
+      AppRole.manager => AppPage.managerDashboard,
+      AppRole.hr => AppPage.adminDashboard,
+      AppRole.admin => AppPage.adminDashboard,
+    };
+  }
+
+  List<AppPage> _pagesForRole(AppRole? role) {
+    return switch (role) {
+      AppRole.employee => const [
+        AppPage.employeeDashboard,
+        AppPage.employeeGoals,
+        AppPage.employeeGoalEditor,
+        AppPage.employeeQuarterlyUpdate,
+      ],
+      AppRole.manager => const [
+        AppPage.managerDashboard,
+        AppPage.managerTeamGoals,
+        AppPage.managerApprovalDetail,
+        AppPage.managerCheckins,
+      ],
+      AppRole.hr => const [
+        AppPage.adminDashboard,
+        AppPage.adminReports,
+        AppPage.adminAuditLogs,
+        AppPage.adminIdentitySettings,
+      ],
+      AppRole.admin => const [
+        AppPage.adminDashboard,
+        AppPage.adminReports,
+        AppPage.adminAuditLogs,
+        AppPage.adminIdentitySettings,
+      ],
+      null => const [],
+    };
   }
 }
