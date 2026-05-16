@@ -56,7 +56,10 @@ service cloud.firestore {
           'role',
           'status',
           'departmentId',
+          'departmentName',
           'managerId',
+          'managerName',
+          'organizationId',
           'organizationName',
           'createdAt',
           'updatedAt'
@@ -64,13 +67,35 @@ service cloud.firestore {
         && request.resource.data.uid == userId
         && request.resource.data.email == request.auth.token.email
         && request.resource.data.emailVerified == false
-        && request.resource.data.role == 'employee'
-        && request.resource.data.status == 'pending';
+        && request.resource.data.role in ['employee', 'manager', 'hr', 'admin']
+        && request.resource.data.status in ['pending', 'active']
+        && request.resource.data.organizationId is string
+        && request.resource.data.organizationName is string;
+    }
+
+    function validOrganizationCreate() {
+      return signedIn()
+        && request.resource.data.keys().hasOnly([
+          'name',
+          'slug',
+          'createdBy',
+          'createdAt',
+          'updatedAt'
+        ])
+        && request.resource.data.name is string
+        && request.resource.data.slug is string
+        && request.resource.data.createdBy == request.auth.uid;
     }
 
     match /appConfig/{documentId} {
       allow read: if verifiedEmail();
       allow create, update, delete: if isAdmin();
+    }
+
+    match /organizations/{organizationId} {
+      allow read: if signedIn();
+      allow create: if validOrganizationCreate();
+      allow update, delete: if isAdmin();
     }
 
     match /users/{userId} {
