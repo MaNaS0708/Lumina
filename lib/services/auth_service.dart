@@ -1,13 +1,21 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
+import '../models/app_user.dart';
+import 'organization_service.dart';
+
 class AuthService {
-  AuthService({FirebaseAuth? auth, FirebaseFirestore? firestore})
-    : _auth = auth ?? FirebaseAuth.instance,
-      _firestore = firestore ?? FirebaseFirestore.instance;
+  AuthService({
+    FirebaseAuth? auth,
+    FirebaseFirestore? firestore,
+    OrganizationService? organizationService,
+  }) : _auth = auth ?? FirebaseAuth.instance,
+       _firestore = firestore ?? FirebaseFirestore.instance,
+       _organizationService = organizationService ?? OrganizationService();
 
   final FirebaseAuth _auth;
   final FirebaseFirestore _firestore;
+  final OrganizationService _organizationService;
 
   Stream<User?> get authStateChanges => _auth.authStateChanges();
 
@@ -18,6 +26,7 @@ class AuthService {
     required String email,
     required String password,
     required String organizationName,
+    required AppRole role,
   }) async {
     final cleanName = name.trim();
     final cleanEmail = email.trim().toLowerCase();
@@ -36,7 +45,7 @@ class AuthService {
     }
 
     if (cleanOrganization.length < 2) {
-      throw const AuthFailure('Please enter your organization name.');
+      throw const AuthFailure('Please enter or select your company.');
     }
 
     try {
@@ -52,16 +61,28 @@ class AuthService {
       }
 
       await user.updateDisplayName(cleanName);
-      await user.sendEmailVerification();
+
+      final organization = await _organizationService
+          .resolveOrganizationForSignup(
+            role: role,
+            organizationName: cleanOrganization,
+            uid: user.uid,
+          );
 
       await _createUserDocumentIfMissing(
         uid: user.uid,
         name: cleanName,
         email: cleanEmail,
-        organizationName: cleanOrganization,
+        role: role,
+        organizationId: organization.id,
+        organizationName: organization.name,
       );
+
+      await user.sendEmailVerification();
     } on FirebaseAuthException catch (error) {
       throw AuthFailure(_messageForFirebaseAuthError(error));
+    } on OrganizationFailure catch (error) {
+      throw AuthFailure(error.message);
     }
   }
 
@@ -136,6 +157,8 @@ class AuthService {
     required String uid,
     required String name,
     required String email,
+    required AppRole role,
+    required String organizationId,
     required String organizationName,
   }) async {
     final reference = _firestore.collection('users').doc(uid);
@@ -150,10 +173,13 @@ class AuthService {
       'displayName': name,
       'email': email,
       'emailVerified': false,
-      'role': 'employee',
-      'status': 'pending',
+      'role': role.firestoreValue,
+      'status': role == AppRole.admin ? 'active' : 'pending',
       'departmentId': null,
+      'departmentName': 'Unassigned',
       'managerId': null,
+      'managerName': 'Unassigned',
+      'organizationId': organizationId,
       'organizationName': organizationName,
       'createdAt': FieldValue.serverTimestamp(),
       'updatedAt': FieldValue.serverTimestamp(),

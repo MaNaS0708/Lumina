@@ -4,7 +4,9 @@ import 'package:flutter/material.dart';
 import '../../controllers/navigation_controller.dart';
 import '../../core/constants/app_colors.dart';
 import '../../models/app_user.dart';
+import '../../models/organization.dart';
 import '../../services/auth_service.dart';
+import '../../services/organization_service.dart';
 
 enum AuthScreenMode { signIn, register, resetPassword, verifyEmail }
 
@@ -16,10 +18,9 @@ class LoginPreviewScreen extends StatefulWidget {
     this.initialEmail,
   });
 
+  final NavigationController controller;
   final AuthScreenMode initialMode;
   final String? initialEmail;
-
-  final NavigationController controller;
 
   @override
   State<LoginPreviewScreen> createState() => _LoginPreviewScreenState();
@@ -32,20 +33,29 @@ class _LoginPreviewScreenState extends State<LoginPreviewScreen> {
     return _authService ??= AuthService();
   }
 
+  final OrganizationService _organizationService = OrganizationService();
+
   final TextEditingController _nameController = TextEditingController();
-  final TextEditingController _organizationController = TextEditingController(
-    text: 'Lumina',
-  );
+  final TextEditingController _organizationController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   final TextEditingController _confirmPasswordController =
       TextEditingController();
 
   late AuthScreenMode _mode;
+  AppRole _selectedRole = AppRole.employee;
+  Organization? _selectedOrganization;
   bool _loading = false;
   bool _acceptedTerms = false;
   String? _message;
   String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _mode = widget.initialMode;
+    _emailController.text = widget.initialEmail ?? '';
+  }
 
   @override
   void dispose() {
@@ -79,12 +89,22 @@ class _LoginPreviewScreenState extends State<LoginPreviewScreen> {
       return;
     }
 
+    if (_selectedRole != AppRole.admin && _selectedOrganization == null) {
+      setState(() {
+        _error =
+            'Please select an existing company. Only admins can create one.';
+      });
+      return;
+    }
+
     await _runAuthAction(() async {
       await authService.registerWithEmailPassword(
         name: _nameController.text,
         email: _emailController.text,
         password: _passwordController.text,
-        organizationName: _organizationController.text,
+        organizationName:
+            _selectedOrganization?.name ?? _organizationController.text,
+        role: _selectedRole,
       );
 
       setState(() {
@@ -216,21 +236,45 @@ class _LoginPreviewScreenState extends State<LoginPreviewScreen> {
                   onForgotPassword: () =>
                       _switchMode(AuthScreenMode.resetPassword),
                 ),
-                AuthScreenMode.register => _RegisterPanel(
-                  key: const ValueKey('register'),
-                  nameController: _nameController,
-                  organizationController: _organizationController,
-                  emailController: _emailController,
-                  passwordController: _passwordController,
-                  confirmPasswordController: _confirmPasswordController,
-                  acceptedTerms: _acceptedTerms,
-                  error: _error,
-                  message: _message,
-                  onAcceptedTermsChanged: (value) {
-                    setState(() => _acceptedTerms = value ?? false);
+                AuthScreenMode.register => StreamBuilder<List<Organization>>(
+                  stream: _organizationService.watchOrganizations(),
+                  builder: (context, snapshot) {
+                    final organizations = snapshot.data ?? const [];
+
+                    return _RegisterPanel(
+                      key: const ValueKey('register'),
+                      nameController: _nameController,
+                      organizationController: _organizationController,
+                      emailController: _emailController,
+                      passwordController: _passwordController,
+                      confirmPasswordController: _confirmPasswordController,
+                      selectedRole: _selectedRole,
+                      organizations: organizations,
+                      selectedOrganization: _selectedOrganization,
+                      acceptedTerms: _acceptedTerms,
+                      error: _error,
+                      message: _message,
+                      onRoleChanged: (role) {
+                        setState(() {
+                          _selectedRole = role;
+                          _selectedOrganization = null;
+                          _organizationController.clear();
+                        });
+                      },
+                      onOrganizationSelected: (organization) {
+                        setState(() {
+                          _selectedOrganization = organization;
+                          _organizationController.text =
+                              organization?.name ?? '';
+                        });
+                      },
+                      onAcceptedTermsChanged: (value) {
+                        setState(() => _acceptedTerms = value ?? false);
+                      },
+                      onRegister: _register,
+                      onSignIn: () => _switchMode(AuthScreenMode.signIn),
+                    );
                   },
-                  onRegister: _register,
-                  onSignIn: () => _switchMode(AuthScreenMode.signIn),
                 ),
                 AuthScreenMode.resetPassword => _ResetPasswordPanel(
                   key: const ValueKey('reset'),
@@ -252,13 +296,6 @@ class _LoginPreviewScreenState extends State<LoginPreviewScreen> {
               },
       ),
     );
-  }
-
-  @override
-  void initState() {
-    super.initState();
-    _mode = widget.initialMode;
-    _emailController.text = widget.initialEmail ?? '';
   }
 }
 
@@ -448,9 +485,14 @@ class _RegisterPanel extends StatelessWidget {
     required this.emailController,
     required this.passwordController,
     required this.confirmPasswordController,
+    required this.selectedRole,
+    required this.organizations,
+    required this.selectedOrganization,
     required this.acceptedTerms,
     required this.error,
     required this.message,
+    required this.onRoleChanged,
+    required this.onOrganizationSelected,
     required this.onAcceptedTermsChanged,
     required this.onRegister,
     required this.onSignIn,
@@ -461,12 +503,19 @@ class _RegisterPanel extends StatelessWidget {
   final TextEditingController emailController;
   final TextEditingController passwordController;
   final TextEditingController confirmPasswordController;
+  final AppRole selectedRole;
+  final List<Organization> organizations;
+  final Organization? selectedOrganization;
   final bool acceptedTerms;
   final String? error;
   final String? message;
+  final ValueChanged<AppRole> onRoleChanged;
+  final ValueChanged<Organization?> onOrganizationSelected;
   final ValueChanged<bool?> onAcceptedTermsChanged;
   final VoidCallback onRegister;
   final VoidCallback onSignIn;
+
+  bool get canCreateCompany => selectedRole == AppRole.admin;
 
   @override
   Widget build(BuildContext context) {
@@ -485,20 +534,24 @@ class _RegisterPanel extends StatelessWidget {
         ),
         const SizedBox(height: 8),
         const Text(
-          'Enter your professional details to get started.',
+          'Choose your demo role and company workspace.',
           style: TextStyle(color: Color(0xFFB7BFCE), fontSize: 15, height: 1.5),
         ),
         const SizedBox(height: 26),
+        _RoleSelector(selectedRole: selectedRole, onChanged: onRoleChanged),
+        const SizedBox(height: 18),
         _AuthField(
           label: 'Full name',
           controller: nameController,
           icon: Icons.person_outline_rounded,
         ),
         const SizedBox(height: 16),
-        _AuthField(
-          label: 'Organization',
-          controller: organizationController,
-          icon: Icons.apartment_rounded,
+        _OrganizationSelector(
+          organizations: organizations,
+          selectedOrganization: selectedOrganization,
+          organizationController: organizationController,
+          canCreateCompany: canCreateCompany,
+          onChanged: onOrganizationSelected,
         ),
         const SizedBox(height: 16),
         _AuthField(
@@ -546,6 +599,134 @@ class _RegisterPanel extends StatelessWidget {
           text: 'Already have an account?',
           action: 'Sign in',
           onPressed: onSignIn,
+        ),
+      ],
+    );
+  }
+}
+
+class _RoleSelector extends StatelessWidget {
+  const _RoleSelector({required this.selectedRole, required this.onChanged});
+
+  final AppRole selectedRole;
+  final ValueChanged<AppRole> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    const roles = [
+      AppRole.employee,
+      AppRole.manager,
+      AppRole.hr,
+      AppRole.admin,
+    ];
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'ROLE',
+          style: TextStyle(
+            color: Color(0xFFC9D0DC),
+            fontSize: 12,
+            fontWeight: FontWeight.w800,
+            letterSpacing: 0.8,
+          ),
+        ),
+        const SizedBox(height: 8),
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: SegmentedButton<AppRole>(
+            segments: roles
+                .map(
+                  (role) => ButtonSegment<AppRole>(
+                    value: role,
+                    label: Text(role.label),
+                  ),
+                )
+                .toList(),
+            selected: {selectedRole},
+            onSelectionChanged: (value) => onChanged(value.first),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _OrganizationSelector extends StatelessWidget {
+  const _OrganizationSelector({
+    required this.organizations,
+    required this.selectedOrganization,
+    required this.organizationController,
+    required this.canCreateCompany,
+    required this.onChanged,
+  });
+
+  final List<Organization> organizations;
+  final Organization? selectedOrganization;
+  final TextEditingController organizationController;
+  final bool canCreateCompany;
+  final ValueChanged<Organization?> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    if (canCreateCompany) {
+      return _AuthField(
+        label: 'Company name',
+        controller: organizationController,
+        icon: Icons.apartment_rounded,
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'COMPANY',
+          style: TextStyle(
+            color: Color(0xFFC9D0DC),
+            fontSize: 12,
+            fontWeight: FontWeight.w800,
+            letterSpacing: 0.8,
+          ),
+        ),
+        const SizedBox(height: 8),
+        DropdownButtonFormField<Organization>(
+          value: selectedOrganization,
+          items: organizations
+              .map(
+                (organization) => DropdownMenuItem<Organization>(
+                  value: organization,
+                  child: Text(organization.name),
+                ),
+              )
+              .toList(),
+          onChanged: organizations.isEmpty ? null : onChanged,
+          dropdownColor: const Color(0xFF171C23),
+          style: const TextStyle(color: Color(0xFFEFF3FA), fontSize: 16),
+          decoration: InputDecoration(
+            prefixIcon: const Icon(
+              Icons.apartment_rounded,
+              color: Color(0xFF9AA4B5),
+            ),
+            hintText: organizations.isEmpty
+                ? 'Ask an admin to create a company first'
+                : 'Select company',
+            hintStyle: const TextStyle(color: Color(0xFF697285)),
+            filled: true,
+            fillColor: const Color(0xFF171C23),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: const BorderSide(color: Color(0xFF3B4556)),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: const BorderSide(
+                color: Color(0xFFAFC8FF),
+                width: 1.4,
+              ),
+            ),
+          ),
         ),
       ],
     );
